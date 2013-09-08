@@ -44,7 +44,7 @@ int main()
 	}
 
 	read(rfd, buffer, sizeof(buffer));
-	if( write(cfd, buffer,sizeof(buffer)) == -1){
+	if( write(cfd, buffer,33) == -1){
 		printf("write fail~\n");
 		return -1;
 	}

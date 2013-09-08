@@ -39,6 +39,10 @@
 #include "packet.h"
 
 #include "debug.h"
+#ifdef DEBUG
+#include<execinfo.h>
+#include<signal.h>
+#endif
 /* buffer for reading from tun/tap interface, must be >= 1500 */
 #define BUFSIZE 2000   
 #define CLIENT 0
@@ -50,6 +54,27 @@
 int debug;
 char *progname;
 
+#ifdef DEBUG
+void debug_backtrace(int dunno)
+{
+	#define SIZE 256
+	void* array[SIZE];
+	int size,i = 0;
+	char **strings;
+	
+	if(dunno == SIGSEGV){
+		fprintf(stderr, "\r\nSegmentation faul\r\n");
+		size = backtrace(array,SIZE);
+		fprintf(stderr, "\r\nBacktrace (%d deep):\r\n",size);
+		strings = backtrace_symbols(array,size);
+		for(;i < size; i++){
+			fprintf(stderr, "%d:%s\n",i, strings[i]);
+		}
+		free(strings);
+		exit(-1);
+	}
+}
+#endif
 /**************************************************************************
  * tun_alloc: allocates or reconnects to a tun/tap device. The caller     *
  *            must reserve enough space in *dev.                          *
@@ -185,6 +210,9 @@ void usage(void) {
   extern unsigned int send_counter;
 
 int main(int argc, char *argv[]) {
+#ifdef DEBUG
+  signal(SIGSEGV,debug_backtrace);
+#endif
   printf("begin!\n");
   int tap_fd, tap_fd1, option;
   int dummy = 0;
@@ -332,28 +360,25 @@ int main(int argc, char *argv[]) {
     if(FD_ISSET(tap_fd1, &rd_set)) {
       /* data from tun/tap: just read it and write it to the network */
 
-      
-	  DEBUGMSG(2,"\n--Receive packet from outside--\n");
       nread = cread(tap_fd1, buffer, BUFSIZE);
 
-      tap2net++;
-      do_debug("TAP2NET %lu: Read %d bytes from the tap interface\n", tap2net, nread);
+ 
       /* write length + packet */
       plength = htons(nread);
 
         if(!dummy){
-	  if(isSignal((unsigned char*)buffer)){
-            DEBUGMSG(2,"Receive a signal packet\n");
-	    const int len = 14 + sizeof(struct ip) + 4;
+	    if(isEpochEnd((unsigned char*)buffer)){
+		DEBUGMSG(1,"Receive a Epoch end signal\n");
+		const int len = 14 + sizeof(struct ip) + 40;
 	    unsigned char echobuffer [14 + sizeof(struct ip) + 4] = {0};
-	    ConstructEcho(echobuffer, (unsigned char*)buffer);	
-	    //nwrite = write(tap_fd1, echobuffer, len);
+		ConstructSignal(echobuffer, (unsigned char*)buffer);	
+		nwrite = write(tap_fd1, echobuffer, len);
 	    continue;
 	  }
 	  if(isIP((unsigned char*)buffer) && isTCP((unsigned char*)buffer)){
        	    int newLen = 0;
-            //verifyPacket(TCP, (unsigned char*)buffer, &newLen);
-            //nread = newLen;
+            verifyPacket(TCP, (unsigned char*)buffer, &newLen);
+            nread = newLen;
 	  }
 	  DEBUGMSG(2,"packet len: %i\n", nread);
        }
