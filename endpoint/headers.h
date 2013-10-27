@@ -72,10 +72,17 @@ struct tcp {
 	unsigned short      urgent;
 };
 
+struct hostinfo{
+	unsigned int goodpackets;
+	unsigned int totalpackets;
+	unsigned int SN[100];
+	unsigned int SNcnt;
+};
 
 struct host{
 	unsigned int ip_addr;
 	unsigned char mac_addr[ETHER_ADDR_LEN];
+	struct hostinfo * info;
 };
 /*********************EOF***********************************/
 #endif

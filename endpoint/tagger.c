@@ -38,6 +38,7 @@
 #include <stdarg.h>
 #include "packet.h"
 #include<signal.h>
+#include "neighbors.h"
 
 #include "debug.h"
 #ifdef DEBUG
@@ -88,10 +89,6 @@ void handler_init(int num)
  **************************************************************************/
 
 
-char local_mac_addr[] = {0x00,0xff,0xec,0xbb,0x1d,0xe3};
-char local_ip_addr[] = "192.168.81.129";
-char gate_mac_addr[] = {0x00,0x0c,0x29,0xa1,0x6c,0xbc};
-char twohopnei_ip_addr[] = "192.168.81.132";
 
 int tun_alloc(char *dev, int flags) {
 
@@ -177,7 +174,7 @@ int read_n(int fd, char *buf, int n) {
  **************************************************************************/
 void do_debug(char *msg, ...){
   
-  va_list argp;
+  //va_list argp;
   
   //if(debug) {
 	//va_start(argp, msg);
@@ -230,11 +227,11 @@ int main(int argc, char *argv[]) {
   int maxfd;
   uint16_t nread, nwrite, plength;
   char buffer[BUFSIZE];
-  struct sockaddr_in local, remote;
+  //struct sockaddr_in local, remote;
   char remote_ip[16] = "";            /* dotted quad IP string */
   unsigned short int port = PORT;
   int sock_fd, net_fd, optval = 1;
-  socklen_t remotelen;
+  //socklen_t remotelen;
   int cliserv = -1;    /* must be specified on cmd line */
   unsigned long int tap2net = 0, net2tap = 0;
 

@@ -33,4 +33,4 @@
 #define  SEND_EXTEND
 
 /* Enable this to compute the extension but not actually add it to the packets. The goal is to first test performance only, without getting into trouble with TCP checksum etc*/
-//#define FAKE
+#define FAKE

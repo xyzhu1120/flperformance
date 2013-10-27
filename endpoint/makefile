@@ -10,7 +10,7 @@ OBJ=tagger.o packet.o crypto.o umac-sse2.o cbcmac.o rijndael-alg-fst.o util.o
 $(PRG):$(OBJ)
 	$(CC) $(INC) $(LIB) -o $@ $(OBJ)
 
-%.o: %.c
+%.o: %.c debug.h neighbors.h
 	$(CC) $(CC_FLAG) $(INC) -c $< -o $@
 
 .PHONY:clean

@@ -101,6 +101,24 @@ unsigned short updateChecksumArray(unsigned short oldChecksum,
 	return newChecksum;
 }
 
+unsigned short updateChecksumArray2(unsigned short oldChecksum, 
+		unsigned short *oldVals, int numVals) {
+	unsigned short oldChecksumI = ~oldChecksum;
+	unsigned short newVal= ~0x0000;
+	unsigned int oldSum = 0;
+	int i;
+
+	for (i = 0; i < numVals; i++) {
+		oldSum += ~((oldVals[i]));
+	}
+
+	unsigned int tmp = (unsigned int) oldChecksumI + oldSum;
+	unsigned int tmp2 = (unsigned short)(tmp >>16) + (tmp & 0xffff);
+	DEBUGMSG(2, "raw:%x\n",tmp2);
+	unsigned short newChecksum = ~( (unsigned short) (tmp >> 16) + (tmp & 0xffff));
+
+	return newChecksum;
+}
 /*
  * Computes a fresh checksum as the 16-bit one's complement on the one's complement sum
  * of the bytes in packet
@@ -175,6 +193,7 @@ unsigned short computeChecksum(int protocol, struct ip* ipHead,
 void analyzePacket(unsigned char* buffer, int len) {
 	struct ethernet* etherHead;
 	struct ip* ipHead;
+	struct tcp* tcpHead;
 	//struct tcp* tcpHead;
 
 	int sizeIPhead = 0;
@@ -183,6 +202,7 @@ void analyzePacket(unsigned char* buffer, int len) {
 	/* Align the headers */
 	etherHead = (struct ethernet*) buffer;
 	ipHead = (struct ip*) (buffer + sizeof(struct ethernet));
+        tcpHead = (struct tcp*)(buffer + sizeof(struct ethernet) + sizeof(struct ip));
 
 #ifdef DEBUG
 	printf("Ether Src:\n");
@@ -284,7 +304,7 @@ void ConstructSignal(unsigned char* buffer, struct host *n, struct host *localho
 	//ipHead->checksum = computeChecksum(;
 	ipHead->dest= n->ip_addr;
 	ipHead->source= localhost->ip_addr;
-	printPacket(buffer, 14 + sizeof(struct ip));
+	//printPacket(buffer, 14 + sizeof(struct ip));
 }
 
 
@@ -352,26 +372,35 @@ int verifyPacket(int protocol, unsigned char * packet, int * newLen)
 	unsigned char hmac[HMAC_LEN];
 	unsigned short oldPacketLen=0;
 	unsigned short newPacketLen=0;
+	unsigned char* payload;
 	unsigned char *packetHmac;
+	unsigned char *packetEnd;
 	int checksumOffset = 0;
+	int payloadLen = 0;
+	int i = 0;
 	struct ip* ipHead;
+        struct tcp* tcpHead;
 	int sizeIPhead;
 	struct in_addr addr;
 
 	unsigned short oldIPChecksum, newIPChecksum;
-	unsigned short newChecksum;
+	unsigned short oldChecksum,newChecksum;
 
 
 	/* Align the packet headers */
 	ipHead = (struct ip*) (packet + ETHER_LEN);
+        tcpHead = (struct tcp*)(packet+ sizeof(struct ethernet) + sizeof(struct ip));
 
-	inet_aton("192.168.58.132",&addr);
+	sizeIPhead = ((ipHead->hlength) << 2) ;
+	inet_aton("192.168.81.132",&addr);
 	if(ipHead->source != addr.s_addr){
 		return 1;
 	}
 	/* Calculate the new length of the IP packet (doesn't include Ethernet header) */
 	oldPacketLen = ntohs(ipHead->total_length);
 	oldIPChecksum = ntohs(ipHead->checksum);
+	payload = findPacketPayload(protocol, packet, &payloadLen);
+	packetEnd = payload + payloadLen;
 
 #ifdef DEBUG > 3
 	printf("#####Calculating the packet HMAC\n");
@@ -395,7 +424,7 @@ int verifyPacket(int protocol, unsigned char * packet, int * newLen)
 #endif
 			return 0;
 	}
-	sizeIPhead = ((ipHead->hlength) << 2) ;
+	oldChecksum = ntohs(*((unsigned short*)(packet + ETHER_LEN + sizeIPhead + checksumOffset)));
 #ifndef FAKE
 	packet[ETHER_LEN+sizeIPhead+checksumOffset] = 0;
 	packet[ETHER_LEN+sizeIPhead+checksumOffset+1] = 0;
@@ -420,9 +449,9 @@ int verifyPacket(int protocol, unsigned char * packet, int * newLen)
 	/* Get HMAC value in the packet and verify */
 	packetHmac = packet+ETHER_LEN+oldPacketLen-24+4;
 	DEBUGMSG(2,"mac in packet is %x, calc is %x", *((unsigned short*)packetHmac), *((unsigned short*)hmac));
-	if  (memcmp(packetHmac, hmac, 2)) {
-		DEBUGMSG(2,"#### MACs is unequal\n");
-	}
+	//if  (memcmp(packetHmac, hmac, 2)) {
+	//	DEBUGMSG(2,"#### MACs is unequal\n");
+	//}
 	/* Get rid of extension, and update packet length */
 	*newLen = newPacketLen+ETHER_LEN;
 #endif
@@ -432,18 +461,35 @@ int verifyPacket(int protocol, unsigned char * packet, int * newLen)
 	DEBUGMSG(2,"IP checksum old: %hu, new: %hu\n", oldIPChecksum, newIPChecksum);
 #ifndef FAKE
 	ipHead->checksum = htons(newIPChecksum);
+        if(!(tcpHead->syn & 1)){
+                //unsigned int seq= ntohl(*((unsigned int*)(packet + ETHER_LEN+sizeIPhead+4)));
+                //*((unsigned int*)(packet + ETHER_LEN+sizeIPhead+4)) = htonl(seq-24);
+        }
 #endif
 
 	/* Update packet checksum */
 	newChecksum = computeChecksum(protocol, ipHead, packet+ETHER_LEN+sizeIPhead, newPacketLen-sizeIPhead);
 
+	//newChecksum = updateChecksum(oldChecksum, oldPacketLen-sizeIPhead, oldPacketLen-sizeIPhead-EXT_LEN);
+	//DEBUGMSG(2,"update first %x\n",newChecksum);
+	//packetEnd = packetEnd - EXT_LEN;
+	//if((newPacketLen - sizeIPhead) & 1){
+	//	newChecksum = updateChecksum(newChecksum,(unsigned short)(*packetEnd), (unsigned short)((*(packetEnd-1))));
+	//	*(packetEnd+EXT_LEN)=0;
+	//	packetEnd++;
+	///	newChecksum = updateChecksumArray2(newChecksum, packetEnd, EXT_LEN>>1);
+	//}else{
+	//	DEBUGMSG(2,"update second\n");
+	//	newChecksum = updateChecksumArray2(newChecksum, packetEnd, EXT_LEN>>1);
+	//}
+
 
 
 #ifndef FAKE
-	DEBUGMSG(2,"TCP checksum old: %hu, new: %hu\n", oldIPChecksum, newIPChecksum);
+	DEBUGMSG(2,"TCP checksum old: %x, new: %x\n", oldChecksum, newChecksum);
 	packet[ETHER_LEN + sizeIPhead + checksumOffset] = NET_UPPER_BYTE(newChecksum);
 	packet[ETHER_LEN + sizeIPhead + checksumOffset + 1] = NET_LOWER_BYTE(newChecksum);
-	ipHead->ttl = 63;
+	ipHead->ttl = 64;
 #ifdef DEBUG
 	printf("#####will return 1\n");
 #endif
@@ -479,6 +525,7 @@ int extendPacket(int protocol, unsigned char* packet)
 	unsigned char *payload;
 	signed char *packetEnd;
 	struct ip* ipHead;
+        struct tcp* tcpHead;
 	int sizeIPhead;
 	int add_len;
 	unsigned int tmp = 0;
@@ -488,6 +535,8 @@ int extendPacket(int protocol, unsigned char* packet)
 
 	/* Align the packet headers */
 	ipHead = (struct ip*) (packet + ETHER_LEN);
+        tcpHead = (struct tcp*)(packet+ sizeof(struct ethernet) + sizeof(struct ip));
+	sizeIPhead = ((ipHead->hlength) << 2) ;
 	
 	/* Calculate the new length of the IP packet (doesn't include Ethernet header) */
 	oldPacketLen = ntohs(ipHead->total_length);
@@ -499,7 +548,6 @@ int extendPacket(int protocol, unsigned char* packet)
 	payload = findPacketPayload(protocol, packet, &payloadLen);
 	packetEnd = payload + payloadLen;
 
-	sizeIPhead = ((ipHead->hlength) << 2) ;
 	
 #ifndef FAKE
 	//construct the Trailer
@@ -521,7 +569,10 @@ int extendPacket(int protocol, unsigned char* packet)
 			DEBUGMSG(1,"Invalid protocol for packet extenon\n");
 			return 0;
 	}
-
+#if DEBUG >= 1
+	printPacket(ipHead, oldPacketLen);
+#endif
+	oldChecksum = ntohs(*((unsigned short*)(packet + ETHER_LEN + sizeIPhead + checksumOffset)));
 #ifndef FAKE
 	packet[ETHER_LEN+sizeIPhead+checksumOffset] = 0;
 	packet[ETHER_LEN+sizeIPhead+checksumOffset+1] = 0;
@@ -555,18 +606,35 @@ int extendPacket(int protocol, unsigned char* packet)
 
 #ifndef FAKE
 	ipHead->checksum = htons(newIPChecksum);
+        if(!(tcpHead->syn & 1)){
+                //unsigned int seq= ntohl(*((unsigned int*)(packet + ETHER_LEN+sizeIPhead+4)));
+                //*((unsigned int*)(packet + ETHER_LEN+sizeIPhead+4)) = htonl(seq+24);
+        }
 #endif
 	/* Update packet checksum */
 
 
-	newChecksum = computeChecksum(protocol, ipHead, packet+ETHER_LEN+sizeIPhead, newPacketLen-sizeIPhead);
+	//newChecksum = computeChecksum(protocol, ipHead, packet+ETHER_LEN+sizeIPhead, newPacketLen-sizeIPhead);
+	newChecksum = updateChecksum(oldChecksum, oldPacketLen-sizeIPhead, oldPacketLen-sizeIPhead+EXT_LEN);
+	if((oldPacketLen - sizeIPhead) & 1){
+		newChecksum = updateChecksum(newChecksum, (unsigned short)((*(packetEnd-1))),(unsigned short)(*packetEnd));
+		*(packetEnd + EXT_LEN)=0;
+		++packetEnd;
+		newChecksum = updateChecksumArray(newChecksum, packetEnd, EXT_LEN-1);
+	}else{
+		newChecksum = updateChecksumArray(newChecksum, packetEnd, EXT_LEN);
+	}
+
+	DEBUGMSG(2,"TCP checksum old: %x, new: %x\n", oldChecksum, newChecksum);
+#if DEBUG > 1
+	//oldChecksum = newChecksum;
+	//newIPChecksum = updateChecksum(oldChecksum, oldPacketLen-sizeIPhead + EXT_LEN, oldPacketLen-sizeIPhead);
+	//newIPChecksum = updateChecksumArray2(newIPChecksum, packetEnd, EXT_LEN);
+	//DEBUGMSG(2,"Recalc TCP checksum: %x\n", newIPChecksum);
+#endif
 #ifndef FAKE
 	packet[ETHER_LEN + sizeIPhead + checksumOffset] = NET_UPPER_BYTE(newChecksum);
 	packet[ETHER_LEN + sizeIPhead + checksumOffset + 1] = NET_LOWER_BYTE(newChecksum);
-	DEBUGMSG(2,"TCP checksum old: %x, new: %x\n", oldChecksum, newChecksum);
-#if DEBUG >= 1
-	printPacket(ipHead, oldPacketLen);
-#endif
 	++send_counter;
 	return ETHER_LEN + newPacketLen;
 
