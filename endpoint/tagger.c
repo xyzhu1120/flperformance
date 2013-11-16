@@ -1,25 +1,3 @@
-/**************************************************************************
- * simpletun.c                                                            *
- *                                                                        *
- * A simplistic, simple-minded, naive tunnelling program using tun/tap    *
- * interfaces and TCP. DO NOT USE THIS PROGRAM FOR SERIOUS PURPOSES.      *
- *                                                                        *
- * You have been warned.                                                  *
- *                                                                        *
- * (C) 2010 Davide Brini.                                                 *
- *                                                                        *
- * DISCLAIMER AND WARNING: this is all work in progress. The code is      *
- * ugly, the algorithms are naive, error checking and input validation    *
- * are very basic, and of course there can be bugs. If that's not enough, *
- * the program has not been thoroughly tested, so it might even fail at   *
- * the few simple things it should be supposed to do right.               *
- * Needless to say, I take no responsibility whatsoever for what the      *
- * program might do. The program has been written mostly for learning     *
- * purposes, and can be used in the hope that is useful, but everything   *
- * is to be taken "as is" and without any kind of warranty, implicit or   *
- * explicit. See the file LICENSE for further details.                    *
- *************************************************************************/ 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
